@@ -3,7 +3,7 @@ import sqlite3
 import subprocess
 import os
 import shutil
-from typing import Dict
+from typing import Dict, List
 
 # Function to create a table based on the fields in a record
 def create_table_if_not_exists(cursor, table_name: str, fields: Dict, unique_key: str):
@@ -103,8 +103,16 @@ def execute_commands_from_db(db_name: str, apikey: str, output_dir: str):
 
     conn.close()
 
+# Function to check if a name contains any of the forbidden words
+def contains_forbidden_words(name: str, forbidden_words: List[str]) -> bool:
+    name_lower = name.lower()
+    for word in forbidden_words:
+        if word.lower() in name_lower:
+            return True
+    return False
+
 # Main function to process JSON and save to database
-def process_json_to_db(file_name: str, db_name: str, unique_key: str, apikey: str, output_dir: str):
+def process_json_to_db(file_name: str, db_name: str, unique_key: str, apikey: str, output_dir: str, forbidden_words: List[str]):
     try:
         # Read the JSON file
         with open(file_name, 'r') as file:
@@ -116,6 +124,11 @@ def process_json_to_db(file_name: str, db_name: str, unique_key: str, apikey: st
         
         # Process each record
         for record in data["records"]:
+            # Check if 'name' contains any of the forbidden words
+            if "name" in record and contains_forbidden_words(record["name"], forbidden_words):
+                print(f"Skipping record with systemid {record['systemid']} due to forbidden words in name.")
+                continue  # Skip this record if 'name' contains any forbidden word
+
             # Create table based on the record's fields with a unique constraint
             create_table_if_not_exists(cursor, "records", record, unique_key)
             # Insert the record into the table
@@ -138,5 +151,8 @@ file_name = input("Enter the JSON file name: ")
 apikey = input("Enter the API key: ")
 output_dir = input("Enter the output directory: ")
 
-# Call the main function with the JSON file, database name, API key, and output directory
-process_json_to_db(file_name, "data_records.db", "systemid", apikey, output_dir)
+# Define the list of forbidden words
+forbidden_words = ["cookie", "cookies", "History.txt","Browser_Default","Chrome","Mozilla"]
+
+# Call the main function with the JSON file, database name, API key, output directory, and forbidden words
+process_json_to_db(file_name, "data_records.db", "systemid", apikey, output_dir, forbidden_words)
